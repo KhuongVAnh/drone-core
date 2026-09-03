@@ -1,0 +1,37 @@
+{
+  "device_id": "",
+  "provisioning": {
+    "api_url": "http://103.253.20.32:10004/api/v1/provisioning/register",
+    "token": "FACTORY_SECRET_KEY_2026",
+    "hardware_model": "Raspberry Pi 4 Model B Rev 1.5",
+    "max_retries": 10,
+    "retry_interval_sec": 5,
+    "wireguard_conf_path": "/etc/wireguard/wg0.conf"
+  },
+  "network": {
+    "wireguard_ip": "10.13.37.2/24",
+    "cloud_vps_endpoint": "10.13.37.1",
+    "wifi_fallback_ssid": "Drone-Config-01",
+    "wifi_fallback_ip": "192.168.4.1"
+  },
+  "mavlink": {
+    "serial_port": "/dev/serial/by-id/usb-ArduPilot_MicroAir-H742",
+    "baud_rate": 57600,
+    "cloud_udp_host": "10.13.37.1",
+    "cloud_udp_port": 14550,
+    "local_udp_port": 14550
+  },
+  "video": {
+    "device_node": "/dev/video0",
+    "width": 1280,
+    "height": 720,
+    "fps": 30,
+    "bitrate_kbps": 2500,
+    "cloud_rtsp_host": "10.13.37.1",
+    "cloud_rtsp_port": 8554,
+    "stream_path": "/drone/live"
+  },
+  "web": {
+    "port": 8080
+  }
+}
