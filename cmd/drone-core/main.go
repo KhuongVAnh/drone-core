@@ -7,6 +7,7 @@ import (
 	"syscall"
 
 	"drone-core/internal/config"
+	"drone-core/internal/web"
 )
 
 func main() {
@@ -16,13 +17,23 @@ func main() {
 	log.Println("=====================================================")
 
 	cfg := config.Load()
-	log.Printf("[Core] Khoi tao du an rong thanh cong! (Device: %s)", cfg.DeviceID)
-	log.Println("[Core] Khung suon he thong san sang de phat trien tiep.")
-	log.Println("[Core] Nhan Ctrl+C de dung ung dung...")
+	log.Printf("[Core] Khoi tao du an thanh cong! (Device: %s)", cfg.DeviceID)
+
+	// Khoi chay Local Web Server test (mac dinh port 8080)
+	webServer := web.New(8080)
+	go func() {
+		if err := webServer.Start(); err != nil {
+			log.Printf("[WebUI] Web server stopped: %v", err)
+		}
+	}()
+
+	log.Println("[Core] He thong dang chay. Nhan Ctrl+C de thoat...")
 
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
 	<-sigChan
 
-	log.Println("[Core] Da nhan tin hieu dung. Tam biet!")
+	log.Println("[Core] Da nhan tin hieu thoat. Dang dong Web Server...")
+	_ = webServer.Close()
+	log.Println("[Core] Dung chuong trinh thanh cong!")
 }

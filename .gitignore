@@ -1,0 +1,41 @@
+# Binaries & build outputs
+bin/
+drone-core
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+
+# Go workspace & dependency cache
+go.work
+go.work.sum
+
+# Temporary files & Logs
+tmp/
+*.tmp
+*.log
+logs/
+
+# IDE & Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Operating System files
+.DS_Store
+Thumbs.db
+
+# Runtime generated configs & sensitive keys
+# (Giữ lại các file template mẫu, bỏ qua file cấu hình thật chứa private key)
+configs/*.conf
+!configs/*.conf.template
+*.key
+*.pem
+*.crt
+.env
+.env.*

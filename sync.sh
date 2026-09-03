@@ -18,11 +18,10 @@ rsync -avz --delete \
     ./ ${PI_USER}@${PI_IP}:${DEST_DIR}/
 
 echo "==> [2/2] Chay ung dung tren Pi..."
-ssh -t ${PI_USER}@${PI_IP} "cd ${DEST_DIR} && go run main.go"
-
+# ssh -t ${PI_USER}@${PI_IP} "cd ${DEST_DIR} && go run main.go"
 # Biên dịch cực nhanh trên máy tính ra kiến trúc ARM64
-# CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o bin/drone-core main.go
+CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o bin/drone-core main.go
 
 # Đẩy binary sang và chạy
-# rsync -avz bin/drone-core ${PI_USER}@${PI_IP}:${DEST_DIR}/
-# ssh -t ${PI_USER}@${PI_IP} "${DEST_DIR}/drone-core"
+rsync -avz bin/drone-core ${PI_USER}@${PI_IP}:${DEST_DIR}/
+ssh -t ${PI_USER}@${PI_IP} "${DEST_DIR}/drone-core"
