@@ -59,8 +59,10 @@ type ProvisioningConfig struct {
 type NetworkConfig struct {
 	WireGuardIP      string `json:"wireguard_ip"`       // IP VPN được cấp (VD: 10.13.37.2/24)
 	CloudVPSEndpoint string `json:"cloud_vps_endpoint"` // IP máy chủ VPS trung tâm (VD: 10.13.37.1)
-	WifiFallbackSSID string `json:"wifi_fallback_ssid"` // Tên Wi-Fi AP cứu hộ phát ra khi mất mạng
-	WifiFallbackIP   string `json:"wifi_fallback_ip"`   // IP của Pi trong mạng Wi-Fi cứu hộ (192.168.4.1)
+	WifiFallbackSSID string `json:"wifi_fallback_ssid"` // Tên Wi-Fi AP phát ra (VD: Drone-Config-01 hoặc để trống tự sinh từ DeviceID)
+	WifiFallbackIP   string `json:"wifi_fallback_ip"`   // IP của Pi trong mạng Wi-Fi (192.168.4.1)
+	WifiPassword     string `json:"wifi_password"`      // Mật khẩu Wi-Fi AP (mặc định "12345678" hoặc để trống không pass)
+	WifiInterface    string `json:"wifi_interface"`     // Tên card mạng Wi-Fi (mặc định "wlan0")
 }
 
 // MavlinkConfig chứa thông số kết nối mạch điều khiển bay MicroAir H742.
@@ -111,6 +113,8 @@ func DefaultConfig() *Config {
 			CloudVPSEndpoint: "10.13.37.1",
 			WifiFallbackSSID: "Drone-Config-01",
 			WifiFallbackIP:   "192.168.4.1",
+			WifiPassword:     "12345678",
+			WifiInterface:    "wlan0",
 		},
 		Mavlink: MavlinkConfig{
 			SerialPort:   "/dev/serial/by-id/usb-ArduPilot_MicroAir-H742",

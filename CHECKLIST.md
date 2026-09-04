@@ -44,11 +44,11 @@
 ### 🎯 Chi tiết từng giai đoạn & Tiêu chí nghiệm thu (Definition of Done)
 
 #### 🔹 Giai đoạn 1: Hạ tầng Mạng Cứu hộ & Bộ điều phối (Ưu tiên số 1)
-* **Mục đích:** Đảm bảo kỹ thuật viên **không bao giờ bị mất liên lạc với Pi ngoài bãi bay** và xây dựng khung quản lý các tiến trình con.
+* **Mục đích:** Đảm bảo kỹ thuật viên **không bao giờ bị mất liên lạc với Pi ngoài bãi bay** (chuẩn hóa theo thiết kế của XBLink) và xây dựng khung quản lý các tiến trình con.
 * **Các task cần làm:**
-  1. `internal/network/`: Tự động phát Wi-Fi Hotspot cứu hộ (`Drone-Config-XXXX`, IP `192.168.4.1`) nếu sau 15s không có Wi-Fi quen thuộc.
+  1. `internal/network/`: Always-on Wi-Fi AP Hotspot (`Drone-Config-XXXX`, IP `192.168.4.1`) kích hoạt ngay khi khởi động. Phân tách kênh độc lập: 5G dùng để bay/VPN ra ngoài, Wi-Fi onboard cố định làm AP trạm mặt đất.
   2. `internal/supervisor/`: Hoàn thiện Process Supervisor (chạy ngầm tiến trình, tự hồi sinh khi crash trong < 1s).
-* **Tiêu chí nghiệm thu:** Rút dây mạng/mang Pi ra sân, điện thoại bắt được Wi-Fi `Drone-Config-XXXX`, mở được Web UI tại `http://192.168.4.1:8080`.
+* **Tiêu chí nghiệm thu:** Cắm pin drone, điện thoại quét thấy ngay Wi-Fi `Drone-Config-XXXX` sau 3 giây, mở được Web UI tại `http://192.168.4.1:8080`.
 
 #### 🔹 Giai đoạn 2: Khối Telemetry Dữ liệu bay MAVLink (Ưu tiên số 2)
 * **Mục đích:** Đảm bảo an toàn bay. Trạm mặt đất (GCS/Cloud) phải nhận được tọa độ, độ cao, pin và trạng thái của MicroAir H742 trước khi bay.
@@ -95,10 +95,12 @@
   - Hiển thị thông số thời gian thực: Cột sóng 5G (RSRP, RSRQ, Băng tần), IP VPN `10.13.37.x`, Video Bitrate, MAVLink FPS.
   - Form cấu hình nhanh: Đổi APN SIM, đổi IP VPS Cloud, đổi dải bitrate camera.
   - Các nút tác vụ nhanh: Khởi động lại MAVLink Router, khởi động lại luồng Video, Reboot hệ thống.
-- [ ] **Tự động phát Wi-Fi Hotspot Cứu hộ (`internal/network/hotspot.go`)**
-  - Cơ chế kiểm tra sau 15 giây khởi động: Nếu không có kết nối Wi-Fi quen thuộc thì tự phát Hotspot.
-  - Tên mạng: `Drone-Config-XXXX` (ghép 4 ký tự cuối của Device ID), IP tĩnh: `192.168.4.1`.
-  - Tích hợp qua `NetworkManager` (`nmcli`) hoặc `hostapd`/`dnsmasq`.
+- [x] **Smart Wi-Fi Controller - AP Hotspot & Client STA (`internal/network/`)**
+  - Cấu trúc module hóa: `types.go`, `nmcli.go`, `ap.go`, `client.go`, `wifi.go`, `network.go`.
+  - Tự động kích hoạt card `wlan0` thành trạm phát Wi-Fi AP ngay khi bật nguồn (hoặc giữ Wi-Fi nhà nếu có).
+  - Tên mạng: `Drone-Config-XXXX` (ghép 4 ký tự cuối của Device ID), IP tĩnh: `192.168.4.1`, kênh 2.4GHz / 5GHz.
+  - Quản lý qua `NetworkManager` (`nmcli`) với cơ chế kiểm tra trạng thái và tự hồi sinh nếu hotspot bị ngắt.
+  - Cung cấp Web UI và REST API (`GET`/`POST` `/api/wifi`, `/api/wifi/client`, `/api/wifi/switch`, `/api/wifi/scan`) quản lý 2 chế độ độc lập.
 - [ ] **Bộ giám sát tiến trình con Process Supervisor (`internal/supervisor/supervisor.go`)**
   - Quản lý vòng đời chạy ngầm của `mavlink-routerd` và pipeline `GStreamer`.
   - Cơ chế Watchdog: Tự động phát hiện tiến trình bị crash và khởi chạy lại trong dưới 1 giây.

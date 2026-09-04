@@ -8,17 +8,21 @@ DEST_DIR="~/drone-core"
 # Tạo thư mục đích nếu chưa có
 ssh ${PI_USER}@${PI_IP} "mkdir -p ${DEST_DIR}"
 
+# [Tùy chọn] Tự động compile Tailwind CSS trên máy tính nếu có công cụ
+if [ -f "./tools/tailwindcss" ]; then
+    ./tools/tailwindcss -i internal/web/ui/input.css -o internal/web/ui/style.css --minify
+fi
+
 echo "==> [1/2] Dong bo source code sang Pi..."
 rsync -avz --delete \
     --exclude '.git' \
     --exclude '.vscode' \
     --exclude 'tmp' \
     --exclude 'bin' \
+    --exclude 'tools' \
     --exclude '*.tmp' \
     ./ ${PI_USER}@${PI_IP}:${DEST_DIR}/
 
-echo "==> [2/2] Chay ung dung tren Pi..."
-# ssh -t ${PI_USER}@${PI_IP} "cd ${DEST_DIR} && go run main.go"
 # Biên dịch cực nhanh trên máy tính ra kiến trúc ARM64
 CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o bin/drone-core main.go
 

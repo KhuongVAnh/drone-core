@@ -8,6 +8,7 @@ import (
 	"syscall"
 
 	"drone-core/internal/config"
+	"drone-core/internal/network"
 	"drone-core/internal/provisioning"
 	"drone-core/internal/web"
 )
@@ -52,11 +53,20 @@ func main() {
 	log.Printf("[Core] Định danh thiết bị (Device ID): %s", cfg.DeviceID)
 
 	// --------------------------------------------------------------------------
+	// BƯỚC 2.5: KHỞI ĐỘNG ALWAYS-ON WI-FI AP HOTSPOT (CHUẨN XBLINK)
+	// --------------------------------------------------------------------------
+	netMgr := network.New(cfg)
+	if err := netMgr.Start(ctx); err != nil {
+		log.Printf("[Core] [Cảnh báo Mạng] %v", err)
+	}
+	defer netMgr.Stop()
+
+	// --------------------------------------------------------------------------
 	// BƯỚC 3: KHỞI CHẠY MÁY CHỦ WEB NỘI BỘ (LOCAL WEB UI)
 	// --------------------------------------------------------------------------
 	// Chạy song song trong 1 goroutine nền, phục vụ kỹ thuật viên cắm điện thoại/laptop
 	// vào Wi-Fi cứu hộ của drone để xem trạng thái và cấu hình nhanh.
-	webServer := web.New(cfg.Web.Port)
+	webServer := web.New(cfg, netMgr)
 	go func() {
 		if err := webServer.Start(); err != nil {
 			log.Printf("[WebUI] Máy chủ Web đã dừng: %v", err)
@@ -76,5 +86,6 @@ func main() {
 
 	log.Printf("[Core] Nhận được tín hiệu dừng (%v). Đang đóng các dịch vụ...", sig)
 	_ = webServer.Close()
+	netMgr.Stop()
 	log.Println("[Core] Toàn bộ dịch vụ đã dừng an toàn. Tạm biệt!")
 }

@@ -103,9 +103,12 @@ Toàn bộ luồng truyền thông giữa Raspberry Pi 4 (Drone) và Cloud VPS �
 
 ---
 
-### Luồng 4: Cấu hình Thực địa Cục bộ (Local Web UI & Wi-Fi Hotspot)
-* **Kênh truy cập:** Kỹ thuật viên kết nối vào Wi-Fi cứu hộ của drone (`Drone-Config-XXXX`, IP `192.168.4.1`) mà không cần có Internet.
-* **Web UI (:80):** File binary Go Agent tích hợp sẵn máy chủ Web và giao diện HTML/Tailwind, cho phép:
+### Luồng 4: Cấu hình Thực địa Cục bộ (Local Web UI & Always-on Wi-Fi Hotspot - Chuẩn XBLink)
+* **Nguyên lý kiến trúc (Chuẩn công nghiệp kiểu XBLink):** Phân tách độc lập 100% giữa kênh Internet và kênh truy cập thực địa:
+  * **Kênh Internet / Cloud:** Chạy độc lập qua Modem 4G/5G (USB/PCIe) và đường hầm WireGuard VPN.
+  * **Kênh Local Field Control:** Card Wi-Fi onboard (`wlan0`) được cố định phát **Access Point (Hotspot) 24/7 ngay từ lúc cắm pin**, không cần chờ đợi quét mạng và không phụ thuộc vào Wi-Fi văn phòng.
+* **Kênh truy cập:** Kỹ thuật viên dùng điện thoại/laptop kết nối vào Wi-Fi của drone (`Drone-Config-XXXX`, IP `192.168.4.1`) tức thì tại bãi bay.
+* **Web UI (:80 / :8080):** File binary Go Agent tích hợp sẵn máy chủ Web và giao diện HTML/Tailwind, cho phép:
   * Xem trạng thái kết nối modem 5G (RSRP, RSRQ, Băng tần).
   * Cấu hình APN nhà mạng, dải IP WireGuard, Port Cloud.
   * Kiểm tra góc quay camera và tín hiệu MAVLink từ MicroAir H742.
@@ -123,15 +126,15 @@ Toàn bộ luồng truyền thông giữa Raspberry Pi 4 (Drone) và Cloud VPS �
 | **Phân phối Video Web** | WebRTC / WHEP | VPS ──► Client | VPS ──► Web Dashboard | Trực tiếp video trình duyệt độ trễ < 250ms |
 | **Phân phối Video GCS** | RTSP | VPS ──► Client | VPS ──► QGroundControl | Xem video trên phần mềm điều khiển bay desktop |
 | **Quản trị / Debug** | SSH (TCP :22) | VPS ──► Drone | `10.13.37.x:22` | SSH debug, quản trị drone từ xa an toàn |
-| **Cấu hình Cục bộ** | HTTP (:80) | Client ⇄ Drone | `192.168.4.1:80` (Wi-Fi AP) | Cấu hình thực địa không cần mạng Internet |
+| **Cấu hình Cục bộ** | HTTP (:80 / :8080) | Client ⇄ Drone | `192.168.4.1:8080` (Wi-Fi AP) | Cấu hình thực địa không cần mạng Internet |
 
 ---
 
 ## 5. CHI TIẾT 6 KHỐI CHỨC NĂNG CỐT LÕI
 
 ### Khối 1: Điều Phối & Web Cấu Hình Nội Bộ (Core Agent & Local Web UI)
-* **Local Web Server (:80):** Đóng gói thành **một file binary duy nhất viết bằng Go** (nhúng sẵn giao diện qua `embed.FS`), kỹ thuật viên thao tác trực tiếp qua trình duyệt điện thoại/laptop.
-* **Wi-Fi AP Fallback (Hotspot cứu hộ):** Tự động phát Wi-Fi Access Point (`Drone-Config-XXXX`, IP `192.168.4.1`) nếu sau **15 giây** không tìm thấy Wi-Fi quen thuộc.
+* **Local Web Server (:80 / :8080):** Đóng gói thành **một file binary duy nhất viết bằng Go** (nhúng sẵn giao diện qua `embed.FS`), kỹ thuật viên thao tác trực tiếp qua trình duyệt điện thoại/laptop.
+* **Always-on Wi-Fi AP Hotspot (Chuẩn XBLink):** Khởi động là tự động kích hoạt card Wi-Fi onboard thành trạm phát AP (`Drone-Config-XXXX`, IP `192.168.4.1`) tức thì, kỹ thuật viên mở điện thoại kết nối vào Web UI ngay trong 3 giây đầu mà không phải chờ đợi. Khi bay xa (BVLOS), drone tự động duy trì 100% qua 5G; khi hạ cánh, điện thoại lại tự động bắt lại Wi-Fi.
 * **Process Supervisor & Watchdog:** Giám sát vòng đời tiến trình `mavlink-router`, `GStreamer`. Tự động khởi chạy lại ngay lập tức nếu một tiến trình con bị crash mà không làm ảnh hưởng luồng khác.
 * **Fast Boot Pipeline:** Tối ưu hóa chu trình nạp dịch vụ, sẵn sàng hoạt động trong **dưới 0.5 giây** sau khi hệ điều hành khởi động.
 

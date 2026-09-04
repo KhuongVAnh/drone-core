@@ -1,6 +1,8 @@
 # Binaries & build outputs
 /bin/
+/tools/
 /drone-core
+config.json
 *.exe
 *.exe~
 *.dll

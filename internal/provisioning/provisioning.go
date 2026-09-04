@@ -126,25 +126,52 @@ func GetHardwareModel() string {
 // LOGIC ONBOARDING & XIN CẤP IP VPN (PROVISIONING ENGINE)
 // ==============================================================================
 
-// IsProvisioned kiểm tra xem thiết bị đã có cấu hình WireGuard hợp lệ hay chưa.
-// Nguồn chân lý duy nhất (Single Source of Truth) là file hệ thống (mặc định /etc/wireguard/wg0.conf).
-// Nếu file này không tồn tại (do người dùng chủ động xóa để xin cấp lại IP), hàm sẽ trả về false
-// và tự động dọn sạch file cache configs/wg0.conf.
+// IsProvisioned kiểm tra xem thiết bị đã có cấu hình WireGuard hợp lệ hay chưa theo mô hình 2 lớp:
+//  1. Kiểm tra file hệ thống chính thức (mặc định /etc/wireguard/wg0.conf).
+//  2. Nếu file hệ thống bị mất/xóa, kiểm tra bản sao lưu cục bộ (configs/wg0.conf).
+//     Nếu có bản sao lưu, tự động khôi phục vào file hệ thống để tiếp tục Fast Boot ngoại tuyến.
+//  3. Nếu file hệ thống có nhưng thiếu file backup cục bộ, tự động đồng bộ sang configs/wg0.conf.
+//  4. Chỉ trả về false khi cả 2 file đều không tồn tại (sẽ kích hoạt Onboarding gọi API lên Server).
 func IsProvisioned(wgConfPath string) bool {
+	backupPath := "configs/wg0.conf"
+
 	// Kiểm tra 1: File hệ thống có tồn tại và đọc được trực tiếp không?
+	systemValid := false
 	if info, err := os.Stat(wgConfPath); err == nil && info.Size() > 50 {
+		systemValid = true
+	} else {
+		// Kiểm tra 2: Nếu bị Permission Denied do /etc/wireguard thuộc sở hữu của root (0700),
+		// ta dùng lệnh 'sudo test -s' để kiểm tra quyền root.
+		cmd := exec.Command("sudo", "test", "-s", wgConfPath)
+		if cmd.Run() == nil {
+			systemValid = true
+		}
+	}
+
+	if systemValid {
+		// Tự động sao lưu dự phòng sang configs/wg0.conf nếu bản backup chưa có
+		if _, err := os.Stat(backupPath); os.IsNotExist(err) {
+			if data, err := os.ReadFile(wgConfPath); err == nil {
+				_ = os.WriteFile(backupPath, data, 0644)
+			} else {
+				cmd := exec.Command("sudo", "cat", wgConfPath)
+				if out, cmdErr := cmd.Output(); cmdErr == nil && len(out) > 50 {
+					_ = os.WriteFile(backupPath, out, 0644)
+				}
+			}
+		}
 		return true
 	}
 
-	// Kiểm tra 2: Nếu bị Permission Denied do /etc/wireguard thuộc sở hữu của root (0700),
-	// ta dùng lệnh 'sudo test -s' để kiểm tra quyền root.
-	cmd := exec.Command("sudo", "test", "-s", wgConfPath)
-	if cmd.Run() == nil {
-		return true
+	// Lớp 2 (Local Fail-safe): File hệ thống bị mất, kiểm tra bản backup tại configs/wg0.conf
+	if info, err := os.Stat(backupPath); err == nil && info.Size() > 50 {
+		log.Printf("[Provisioning] ⚠️ Phát hiện mất file hệ thống (%s) nhưng tìm thấy bản sao lưu tại %s. Đang tự động khôi phục...", wgConfPath, backupPath)
+		if err := CopyLocalToSystem(backupPath, wgConfPath); err == nil {
+			log.Printf("[Provisioning] ✅ Đã khôi phục thành công cấu hình WireGuard vào %s từ bản sao lưu cục bộ!", wgConfPath)
+			return true
+		}
+		log.Printf("[Provisioning] [Cảnh báo] Lỗi khi khôi phục cấu hình từ backup vào %s: %v", wgConfPath, err)
 	}
-
-	// Nếu file hệ thống không tồn tại, tự động xóa luôn file cache configs/wg0.conf nếu còn sót lại
-	_ = os.Remove("configs/wg0.conf")
 
 	return false
 }
@@ -337,10 +364,41 @@ func CopyLocalToSystem(srcPath, destPath string) error {
 		return err
 	}
 	dir := filepath.Dir(destPath)
+	_ = os.MkdirAll(dir, 0755)
+
+	// Thử ghi trực tiếp nếu có quyền
+	if err := os.WriteFile(destPath, data, 0600); err == nil {
+		return nil
+	}
+
+	// Sử dụng sudo nếu chạy dưới user thường
 	shCmd := fmt.Sprintf("mkdir -p %s && cat > %s && chmod 600 %s", dir, destPath, destPath)
 	cmd := exec.Command("sudo", "sh", "-c", shCmd)
 	cmd.Stdin = bytes.NewReader(data)
 	return cmd.Run()
+}
+
+// ExtractIPFromWireGuardConfig đọc IP từ dòng "Address = ..." trong file cấu hình WireGuard
+func ExtractIPFromWireGuardConfig(confPath string) string {
+	data, err := os.ReadFile(confPath)
+	if err != nil {
+		cmd := exec.Command("sudo", "cat", confPath)
+		out, cmdErr := cmd.Output()
+		if cmdErr != nil {
+			return ""
+		}
+		data = out
+	}
+	for _, line := range strings.Split(string(data), "\n") {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "Address") {
+			parts := strings.SplitN(line, "=", 2)
+			if len(parts) == 2 {
+				return strings.TrimSpace(parts[1])
+			}
+		}
+	}
+	return ""
 }
 
 // ActivateWireGuard Interface kích hoạt card mạng WireGuard wg0 trên Linux Kernel.
@@ -398,6 +456,15 @@ func EnsureProvisioned(ctx context.Context, cfg *config.Config) error {
 	// 2. Cơ chế Fast Boot: Kiểm tra xem đã có cấu hình WireGuard hệ thống (/etc/wireguard/wg0.conf) chưa
 	if IsProvisioned(wgPath) {
 		log.Printf("[Provisioning] ⚡ [FAST BOOT] Phát hiện cấu hình WireGuard đã sẵn sàng (%s). Bỏ qua bước gọi API!", wgPath)
+
+		// Nếu trong config.json chưa có WireGuardIP, tự động đọc từ file wg0.conf và lưu bù lại vào config.json
+		if cfg.Network.WireGuardIP == "" {
+			if ip := ExtractIPFromWireGuardConfig(wgPath); ip != "" {
+				cfg.Network.WireGuardIP = ip
+				_ = config.SaveConfig("configs/config.json", cfg)
+				log.Printf("[Provisioning] Đã tự động khôi phục WireGuard IP (%s) vào configs/config.json", ip)
+			}
+		}
 
 		// Kích hoạt đường hầm VPN
 		if err := ActivateWireGuard("wg0"); err != nil {

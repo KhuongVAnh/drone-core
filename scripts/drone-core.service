@@ -1,0 +1,15 @@
+[Unit]
+Description=Drone Core Edge Daemon
+After=network.target
+# auto run web server after boot
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/home/pi2/drone-core
+ExecStart=/home/pi2/drone-core/drone-core
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

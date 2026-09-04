@@ -3,81 +3,463 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Drone-Core | Test Dashboard</title>
-  <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
-    body { background-color: #0f172a; color: #f8fafc; display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 20px; }
-    .card { background: #1e293b; border: 1px solid #334155; border-radius: 16px; padding: 32px; max-width: 520px; width: 100%; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5); text-align: center; }
-    .icon { font-size: 48px; margin-bottom: 12px; }
-    h1 { font-size: 24px; font-weight: 700; color: #38bdf8; margin-bottom: 8px; }
-    .subtitle { font-size: 14px; color: #94a3b8; margin-bottom: 24px; }
-    .banner { background: rgba(56, 189, 248, 0.1); border: 1px solid rgba(56, 189, 248, 0.3); border-radius: 12px; padding: 16px; margin-bottom: 24px; }
-    .banner h2 { font-size: 20px; color: #38bdf8; margin-bottom: 4px; }
-    .banner p { font-size: 13px; color: #cbd5e1; }
-    .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; text-align: left; margin-bottom: 24px; }
-    .info-box { background: #0f172a; padding: 12px 16px; border-radius: 8px; border: 1px solid #334155; }
-    .info-label { font-size: 11px; text-transform: uppercase; color: #64748b; font-weight: 600; }
-    .info-value { font-size: 14px; font-weight: 600; color: #f1f5f9; margin-top: 4px; }
-    .badge { display: inline-block; padding: 4px 12px; border-radius: 9999px; font-size: 12px; font-weight: 600; background: #064e3b; color: #34d399; border: 1px solid #059669; }
-    .btn { background: #0284c7; color: white; border: none; padding: 10px 20px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; transition: background 0.2s; width: 100%; }
-    .btn:hover { background: #0369a1; }
-    #ping-result { font-size: 12px; color: #38bdf8; margin-top: 12px; min-height: 18px; }
-  </style>
+  <title>Drone-Core | Control Center</title>
+  <link rel="stylesheet" href="style.css">
+  <script defer src="alpine.min.js"></script>
 </head>
-<body>
-  <div class="card">
-    <div class="icon">🛸</div>
-    <h1>DRONE-CORE SYSTEM</h1>
-    <p class="subtitle">Raspberry Pi 4 Edge Companion Computer</p>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex items-center justify-center p-4 antialiased selection:bg-sky-500 selection:text-white"
+      x-data="droneApp()">
 
-    <div class="banner">
-      <h2>👋 Hello World!</h2>
-      <p>Giao diện Web UI nội bộ đã hoạt động thành công trên thiết bị.</p>
+  <div class="w-full max-w-lg flex flex-col gap-4 my-6">
+
+    <!-- Thẻ Tiêu đề & Thông tin Trạng thái -->
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-2xl text-center relative overflow-hidden">
+      <div class="absolute -top-12 -left-12 w-36 h-36 bg-sky-500/10 rounded-full blur-3xl pointer-events-none"></div>
+      <div class="absolute -bottom-12 -right-12 w-36 h-36 bg-blue-500/10 rounded-full blur-3xl pointer-events-none"></div>
+
+      <div class="text-4xl mb-2 select-none">🛸</div>
+      <h1 class="text-xl md:text-2xl font-black tracking-wider text-transparent bg-clip-text bg-gradient-to-r from-sky-400 via-cyan-300 to-blue-500 uppercase">
+        Drone-Core Companion
+      </h1>
+      <p class="text-xs text-slate-400 font-medium mt-1">Raspberry Pi 4 Edge Computer</p>
+
+      <!-- Thanh trạng thái chế độ Wi-Fi hiện thời -->
+      <div class="mt-4 p-3 bg-slate-950/90 border border-slate-800 rounded-xl flex items-center justify-between gap-2">
+        <div class="flex items-center gap-2 text-left">
+          <template x-if="wifi.mode === 'client'">
+            <div class="flex items-center gap-2">
+              <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
+              <div>
+                <div class="text-[11px] font-bold text-emerald-400 uppercase tracking-wide">Đang bắt Wi-Fi Nhà/Lab</div>
+                <div class="text-xs font-mono text-slate-200" x-text="(wifi.client?.ssid || 'Chưa rõ') + ' (' + (wifi.current_ip || 'Chưa có IP') + ')'"></div>
+              </div>
+            </div>
+          </template>
+          <template x-if="wifi.mode !== 'client'">
+            <div class="flex items-center gap-2">
+              <span class="w-2.5 h-2.5 rounded-full bg-sky-400 animate-pulse"></span>
+              <div>
+                <div class="text-[11px] font-bold text-sky-400 uppercase tracking-wide">Đang phát Hotspot Bãi bay</div>
+                <div class="text-xs font-mono text-slate-200" x-text="(wifi.hotspot?.ssid || 'Drone-Config') + ' (' + (wifi.hotspot?.ip || '192.168.4.1') + ')'"></div>
+              </div>
+            </div>
+          </template>
+        </div>
+
+        <!-- Nút chuyển đổi chế độ nhanh -->
+        <button type="button" @click="toggleMode()" :disabled="isSwitching"
+                class="px-3 py-1.5 rounded-lg text-xs font-semibold border transition flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                :class="wifi.mode === 'client' ? 'bg-sky-500/15 border-sky-500/30 text-sky-300 hover:bg-sky-500/25' : 'bg-emerald-500/15 border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/25'">
+          <span x-text="isSwitching ? '⏳ Đang chuyển...' : (wifi.mode === 'client' ? '📶 Bật Hotspot' : '🏠 Bắt Wi-Fi Nhà')"></span>
+        </button>
+      </div>
+
+      <!-- Lưới thông số phụ -->
+      <div class="grid grid-cols-2 gap-2 mt-3 text-left">
+        <div class="bg-slate-950/60 border border-slate-800/80 rounded-xl p-2.5">
+          <div class="text-[10px] font-bold text-slate-400 uppercase">Thiết bị</div>
+          <div class="text-xs font-mono font-semibold text-slate-200 mt-0.5 truncate" x-text="status.device_id || 'Đang tải...'"></div>
+        </div>
+        <div class="bg-slate-950/60 border border-slate-800/80 rounded-xl p-2.5">
+          <div class="text-[10px] font-bold text-slate-400 uppercase">WireGuard VPN</div>
+          <div class="text-xs font-mono font-semibold text-emerald-400 mt-0.5 truncate" x-text="status.wireguard_ip || 'Chưa cấp phát'"></div>
+        </div>
+      </div>
     </div>
 
-    <div class="info-grid">
-      <div class="info-box">
-        <div class="info-label">Trạng thái</div>
-        <div class="info-value"><span class="badge">Online (HTTP 200)</span></div>
+    <!-- Hộp Cấu hình 2 Chế độ (Tabs) -->
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl overflow-hidden">
+      <!-- Thanh chuyển Tab -->
+      <div class="grid grid-cols-2 border-b border-slate-800 bg-slate-950/50 text-xs font-bold">
+        <button type="button" @click="activeTab = 'client'"
+                class="py-3.5 px-4 text-center transition flex items-center justify-center gap-2 cursor-pointer border-b-2"
+                :class="activeTab === 'client' ? 'border-emerald-500 text-emerald-400 bg-slate-900/80' : 'border-transparent text-slate-400 hover:text-slate-200'">
+          <span>🏠</span>
+          <span>1. Wi-Fi Bắt vào (Nhà/Lab)</span>
+        </button>
+        <button type="button" @click="activeTab = 'hotspot'"
+                class="py-3.5 px-4 text-center transition flex items-center justify-center gap-2 cursor-pointer border-b-2"
+                :class="activeTab === 'hotspot' ? 'border-sky-500 text-sky-400 bg-slate-900/80' : 'border-transparent text-slate-400 hover:text-slate-200'">
+          <span>📶</span>
+          <span>2. Wi-Fi Phát ra (Bãi bay)</span>
+        </button>
       </div>
-      <div class="info-box">
-        <div class="info-label">Thiết bị</div>
-        <div class="info-value" id="dev-id">drone-edge-01</div>
-      </div>
-      <div class="info-box">
-        <div class="info-label">Thời gian</div>
-        <div class="info-value" id="clock">--:--:--</div>
-      </div>
-      <div class="info-box">
-        <div class="info-label">Mạng nội bộ</div>
-        <div class="info-value">192.168.4.1 / LAN</div>
+
+      <div class="p-6">
+        <!-- ============================================================ -->
+        <!-- TAB 1: CẤU HÌNH WI-FI BẮT VÀO (CLIENT / MẠNG NHÀ) -->
+        <!-- ============================================================ -->
+        <div x-show="activeTab === 'client'" x-cloak class="space-y-4">
+          <div class="text-xs text-slate-400 leading-relaxed">
+            Cấu hình tên và mật khẩu mạng Wi-Fi tại nhà hoặc văn phòng để Pi <strong>tự động kết nối</strong> khi bật nguồn (dùng để SSH, tải code, truy cập Internet).
+          </div>
+
+          <form @submit.prevent="connectClientWifi()" class="space-y-4">
+            <!-- SSID Wi-Fi Nhà -->
+            <div>
+              <div class="flex items-center justify-between mb-1.5">
+                <label for="client-ssid" class="text-xs font-semibold text-slate-300">
+                  Tên Wi-Fi Nhà / Phòng Lab (SSID)
+                </label>
+                <button type="button" @click="scanWifi()" :disabled="isScanning"
+                        class="text-[11px] text-sky-400 hover:text-sky-300 font-semibold flex items-center gap-1 cursor-pointer disabled:opacity-50">
+                  <span>🔍</span>
+                  <span x-text="isScanning ? 'Đang quét...' : 'Dò Wi-Fi xung quanh'"></span>
+                </button>
+              </div>
+
+              <!-- Danh sách Wi-Fi quét được (nếu có) -->
+              <template x-if="scannedList.length > 0">
+                <div class="mb-2 bg-slate-950 border border-slate-800 rounded-xl p-2 max-h-36 overflow-y-auto space-y-1">
+                  <div class="text-[10px] uppercase font-bold text-slate-400 px-2 py-0.5">Chọn mạng Wi-Fi tìm thấy:</div>
+                  <template x-for="item in scannedList" :key="item.ssid">
+                    <button type="button" @click="selectScanned(item.ssid)"
+                            class="w-full text-left px-2.5 py-1.5 rounded-lg text-xs hover:bg-slate-800 flex items-center justify-between transition cursor-pointer">
+                      <span class="font-medium text-slate-200" x-text="item.ssid"></span>
+                      <span class="text-[10px] text-slate-400 font-mono" x-text="item.signal + '% • ' + item.security"></span>
+                    </button>
+                  </template>
+                </div>
+              </template>
+
+              <input id="client-ssid" type="text" x-model="clientForm.ssid" required
+                     placeholder="VD: Viettel-Home-5G"
+                     class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition">
+            </div>
+
+            <!-- Mật khẩu Wi-Fi Nhà -->
+            <div>
+              <label for="client-pass" class="block text-xs font-semibold text-slate-300 mb-1.5">
+                Mật khẩu Wi-Fi Nhà
+              </label>
+              <div class="relative flex items-center">
+                <input id="client-pass" :type="clientForm.showPass ? 'text' : 'password'" x-model="clientForm.password"
+                       placeholder="Nhập mật khẩu Wi-Fi nhà (hoặc để trống nếu mạng mở)"
+                       class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 pr-10 text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition font-mono">
+                <button type="button" @click="clientForm.showPass = !clientForm.showPass"
+                        class="absolute right-2.5 text-slate-400 hover:text-slate-200 p-1 transition"
+                        title="Ẩn/Hiện mật khẩu">
+                  <span x-text="clientForm.showPass ? '🙈' : '👁️'"></span>
+                </button>
+              </div>
+            </div>
+
+            <div class="bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-3 text-xs text-emerald-300 leading-relaxed">
+              💡 <strong>Lưu ý:</strong> Khi kết nối thành công, Pi sẽ ngắt trạm Hotspot và gia nhập Wi-Fi nhà. Bạn có thể mở Web UI qua IP Wi-Fi nhà hoặc qua <strong>http://drone-virtual.local:8080</strong>.
+            </div>
+
+            <button type="submit" :disabled="clientForm.isConnecting"
+                    class="w-full bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 disabled:opacity-50 text-white font-semibold py-3 px-4 rounded-xl shadow-lg shadow-emerald-950/50 transition flex items-center justify-center gap-2 cursor-pointer">
+              <span x-show="!clientForm.isConnecting">🔗 Lưu & Kết nối vào Wi-Fi này</span>
+              <span x-show="clientForm.isConnecting">⏳ Đang kết nối vào Wi-Fi...</span>
+            </button>
+          </form>
+        </div>
+
+        <!-- ============================================================ -->
+        <!-- TAB 2: CẤU HÌNH WI-FI PHÁT RA (HOTSPOT / BÃI BAY) -->
+        <!-- ============================================================ -->
+        <div x-show="activeTab === 'hotspot'" x-cloak class="space-y-4">
+          <div class="text-xs text-slate-400 leading-relaxed">
+            Cấu hình tên và mật khẩu mạng Wi-Fi do chính <strong>Pi phát ra</strong> khi ở thực địa/bãi bay để điện thoại hoặc máy tính bảng kết nối vào điều khiển.
+          </div>
+
+          <form @submit.prevent="saveHotspotWifi()" class="space-y-4">
+            <!-- Tên Hotspot -->
+            <div>
+              <label for="hotspot-ssid" class="block text-xs font-semibold text-slate-300 mb-1.5">
+                Tên mạng Wi-Fi phát ra (SSID)
+              </label>
+              <input id="hotspot-ssid" type="text" x-model="hotspotForm.ssid" maxlength="32" required
+                     placeholder="VD: Drone-Config-4AE5"
+                     class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-sky-500/50 focus:border-sky-500 transition">
+              <p class="text-[11px] text-slate-400 mt-1">Tên Wi-Fi xuất hiện khi quét mạng trên điện thoại (tối đa 32 ký tự).</p>
+            </div>
+
+            <!-- Mật khẩu Hotspot -->
+            <div>
+              <label for="hotspot-pass" class="block text-xs font-semibold text-slate-300 mb-1.5">
+                Mật khẩu trạm phát (WPA2-PSK)
+              </label>
+              <div class="relative flex items-center">
+                <input id="hotspot-pass" :type="hotspotForm.showPass ? 'text' : 'password'" x-model="hotspotForm.password"
+                       placeholder="Tối thiểu 8 ký tự hoặc để trống"
+                       class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 pr-10 text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-sky-500/50 focus:border-sky-500 transition font-mono">
+                <button type="button" @click="hotspotForm.showPass = !hotspotForm.showPass"
+                        class="absolute right-2.5 text-slate-400 hover:text-slate-200 p-1 transition"
+                        title="Ẩn/Hiện mật khẩu">
+                  <span x-text="hotspotForm.showPass ? '🙈' : '👁️'"></span>
+                </button>
+              </div>
+              <p class="text-[11px] text-slate-400 mt-1">Tối thiểu 8 ký tự theo chuẩn WPA2. Để trống nếu mở mạng không pass.</p>
+            </div>
+
+            <div class="bg-sky-500/10 border border-sky-500/30 rounded-xl p-3 text-xs text-sky-300 leading-relaxed">
+              📡 <strong>IP Cố định của trạm:</strong> <strong>192.168.4.1</strong>. Khi kết nối điện thoại vào mạng này, mở trình duyệt vào <strong>http://192.168.4.1:8080</strong>.
+            </div>
+
+            <button type="submit" :disabled="hotspotForm.isSaving"
+                    class="w-full bg-sky-600 hover:bg-sky-500 active:bg-sky-700 disabled:opacity-50 text-white font-semibold py-3 px-4 rounded-xl shadow-lg shadow-sky-950/50 transition flex items-center justify-center gap-2 cursor-pointer">
+              <span x-show="!hotspotForm.isSaving">💾 Lưu Cấu hình Trạm phát AP</span>
+              <span x-show="hotspotForm.isSaving">⏳ Đang lưu & Áp dụng...</span>
+            </button>
+          </form>
+        </div>
+
+        <!-- Khung Thông báo Thành công / Lỗi -->
+        <div x-show="alertMsg" x-cloak class="mt-4 p-3.5 rounded-xl text-xs leading-relaxed"
+             :class="alertType === 'success' ? 'bg-emerald-500/15 border border-emerald-500/40 text-emerald-200' : 'bg-rose-500/15 border border-rose-500/40 text-rose-300'"
+             x-html="alertMsg">
+        </div>
       </div>
     </div>
 
-    <button class="btn" onclick="testPing()">⚡ Test API Ping</button>
-    <div id="ping-result"></div>
+    <!-- Thẻ Tiện ích Kiểm tra nhanh -->
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl px-6 py-3.5 shadow-2xl flex flex-col gap-2">
+      <div class="flex items-center justify-between text-xs text-slate-400">
+        <div class="flex items-center gap-1.5 font-mono">
+          <span>🕒</span>
+          <span x-text="clock">--:--:--</span>
+        </div>
+        <button type="button" @click="testPing()" :disabled="isPinging"
+                class="bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white px-3 py-1 rounded-lg border border-slate-700 transition cursor-pointer text-xs flex items-center gap-1">
+          <span>⚡</span>
+          <span x-text="isPinging ? 'Đang ping...' : 'Test Ping'"></span>
+        </button>
+      </div>
+
+      <div x-show="pingStatus" x-cloak
+           class="text-[11px] font-mono text-center text-sky-400 pt-1"
+           x-text="pingStatus">
+      </div>
+    </div>
+
   </div>
 
   <script>
-    function updateClock() {
-      const now = new Date();
-      document.getElementById('clock').textContent = now.toLocaleTimeString('vi-VN');
-    }
-    setInterval(updateClock, 1000);
-    updateClock();
+    function droneApp() {
+      return {
+        clock: '--:--:--',
+        activeTab: 'client', // 'client' hoặc 'hotspot'
+        isSwitching: false,
+        isScanning: false,
+        isPinging: false,
+        pingStatus: '',
+        alertMsg: '',
+        alertType: 'success',
 
-    async function testPing() {
-      const resEl = document.getElementById('ping-result');
-      resEl.textContent = 'Đang gửi ping...';
-      try {
-        const res = await fetch('/api/ping');
-        const data = await res.json();
-        resEl.textContent = `✓ Phản hồi từ Server: ${data.message} (${data.time})`;
-      } catch (err) {
-        resEl.textContent = '✗ Lỗi kết nối API!';
-      }
+        status: {
+          device_id: 'Đang tải...',
+          wireguard_ip: 'Chưa cấp phát'
+        },
+
+        wifi: {
+          mode: 'ap',
+          current_ip: '192.168.4.1',
+          hotspot: { ssid: '', password: '', ip: '192.168.4.1', active: false, clients: 0 },
+          client: { connected: false, ssid: '', ip: '', saved_ssids: [] }
+        },
+
+        clientForm: {
+          ssid: '',
+          password: '',
+          showPass: false,
+          isConnecting: false
+        },
+
+        hotspotForm: {
+          ssid: '',
+          password: '',
+          showPass: false,
+          isSaving: false
+        },
+
+        scannedList: [],
+
+        init() {
+          this.updateClock();
+          setInterval(() => this.updateClock(), 1000);
+          this.loadData();
+        },
+
+        updateClock() {
+          this.clock = new Date().toLocaleTimeString('vi-VN');
+        },
+
+        async loadData() {
+          try {
+            const res = await fetch('/api/status');
+            if (res.ok) {
+              this.status = await res.json();
+            }
+          } catch (e) {
+            console.warn('Lỗi lấy status:', e);
+          }
+
+          try {
+            const res = await fetch('/api/wifi');
+            if (res.ok) {
+              const data = await res.json();
+              this.wifi = data;
+              // Điền form Hotspot
+              if (data.hotspot) {
+                this.hotspotForm.ssid = data.hotspot.ssid || '';
+                this.hotspotForm.password = data.hotspot.password || '';
+              }
+              // Điền form Client nếu đã có kết nối hoặc mạng lưu
+              if (data.client) {
+                if (data.client.ssid) {
+                  this.clientForm.ssid = data.client.ssid;
+                } else if (data.client.saved_ssids && data.client.saved_ssids.length > 0) {
+                  this.clientForm.ssid = data.client.saved_ssids[0];
+                }
+              }
+              // Tự động mở tab tương ứng
+              if (data.mode === 'client') {
+                this.activeTab = 'client';
+              } else {
+                this.activeTab = 'hotspot';
+              }
+            }
+          } catch (e) {
+            console.warn('Lỗi lấy wifi:', e);
+          }
+        },
+
+        async scanWifi() {
+          this.isScanning = true;
+          this.scannedList = [];
+          try {
+            const res = await fetch('/api/wifi/scan');
+            if (res.ok) {
+              this.scannedList = await res.json();
+            } else {
+              this.showAlert('Không thể quét Wi-Fi!', 'error');
+            }
+          } catch (e) {
+            this.showAlert('Lỗi khi gửi yêu cầu quét Wi-Fi!', 'error');
+          } finally {
+            this.isScanning = false;
+          }
+        },
+
+        selectScanned(ssid) {
+          this.clientForm.ssid = ssid;
+          this.scannedList = [];
+        },
+
+        async connectClientWifi() {
+          const ssid = this.clientForm.ssid.trim();
+          const password = this.clientForm.password.trim();
+          if (!ssid) {
+            this.showAlert('Vui lòng nhập tên Wi-Fi nhà!', 'error');
+            return;
+          }
+
+          this.clientForm.isConnecting = true;
+          this.alertMsg = '';
+
+          try {
+            const res = await fetch('/api/wifi/client', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ ssid, password })
+            });
+            const data = await res.json();
+            if (res.ok) {
+              this.showAlert(`✅ <strong>Đã kết nối thành công vào mạng '${ssid}'!</strong><br>Trạm Hotspot đã tắt để nhường chỗ cho Wi-Fi nhà. Vui lòng kết nối máy tính của bạn vào Wi-Fi '${ssid}' để tiếp tục truy cập qua IP mới.`, 'success');
+              setTimeout(() => this.loadData(), 2000);
+            } else {
+              this.showAlert(data.error || 'Kết nối thất bại!', 'error');
+            }
+          } catch (e) {
+            this.showAlert(`📶 Đang kết nối vào '${ssid}'... Nếu bạn bị ngắt kết nối với Hotspot, vui lòng kết nối điện thoại/máy tính vào mạng '${ssid}' và mở lại trang web!`, 'success');
+          } finally {
+            this.clientForm.isConnecting = false;
+          }
+        },
+
+        async saveHotspotWifi() {
+          const ssid = this.hotspotForm.ssid.trim();
+          const password = this.hotspotForm.password.trim();
+
+          if (!ssid || ssid.length > 32) {
+            this.showAlert('Tên Wi-Fi (SSID) phải từ 1 đến 32 ký tự!', 'error');
+            return;
+          }
+          if (password.length > 0 && password.length < 8) {
+            this.showAlert('Mật khẩu Wi-Fi phải có ít nhất 8 ký tự theo chuẩn WPA2!', 'error');
+            return;
+          }
+
+          this.hotspotForm.isSaving = true;
+          this.alertMsg = '';
+
+          try {
+            const res = await fetch('/api/wifi', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ ssid, password })
+            });
+            const data = await res.json();
+            if (res.ok) {
+              const passStr = password ? `<strong>${password}</strong>` : '<i>(Không mật khẩu)</i>';
+              this.showAlert(`✅ <strong>Đã lưu cấu hình Hotspot thành công!</strong><br>Tên Wi-Fi: <strong>${ssid}</strong> | Mật khẩu: ${passStr}<br>Trạm phát đang khởi động lại. Vui lòng kết nối lại vào Wi-Fi mới!`, 'success');
+            } else {
+              this.showAlert(data.error || 'Lỗi cập nhật cấu hình Hotspot!', 'error');
+            }
+          } catch (e) {
+            this.showAlert(`📶 Trạm phát đang khởi động lại với tên mới <strong>${ssid}</strong>. Vui lòng kết nối lại Wi-Fi!`, 'success');
+          } finally {
+            this.hotspotForm.isSaving = false;
+          }
+        },
+
+        async toggleMode() {
+          const targetMode = this.wifi.mode === 'client' ? 'hotspot' : 'client';
+          this.isSwitching = true;
+          this.alertMsg = '';
+
+          try {
+            const res = await fetch('/api/wifi/switch', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ mode: targetMode })
+            });
+            const data = await res.json();
+            if (res.ok) {
+              this.showAlert(`✓ Đã chuyển sang chế độ ${targetMode === 'hotspot' ? 'Trạm phát Hotspot' : 'Wi-Fi Nhà'} thành công!`, 'success');
+              setTimeout(() => this.loadData(), 2000);
+            } else {
+              this.showAlert(data.error || 'Lỗi khi chuyển đổi chế độ!', 'error');
+            }
+          } catch (e) {
+            this.showAlert(`🔄 Đang chuyển chế độ mạng... Vui lòng đợi vài giây và tải lại trang!`, 'success');
+          } finally {
+            this.isSwitching = false;
+          }
+        },
+
+        showAlert(msg, type) {
+          this.alertMsg = msg;
+          this.alertType = type;
+        },
+
+        async testPing() {
+          this.isPinging = true;
+          this.pingStatus = 'Đang gửi ping...';
+          try {
+            const res = await fetch('/api/ping');
+            const data = await res.json();
+            this.pingStatus = `✓ Phản hồi từ Server: ${data.message} (${data.time})`;
+          } catch (e) {
+            this.pingStatus = '✗ Lỗi kết nối API!';
+          } finally {
+            this.isPinging = false;
+          }
+        }
+      };
     }
   </script>
 </body>
 </html>
-
